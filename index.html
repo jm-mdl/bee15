@@ -3168,11 +3168,11 @@ const Audio_ = {
   ctx: null, master: null, wet: null, muted: false, mode: null, files: {}, el: null,
   step: 0, nextTime: 0, timer: null,
   modes: {
-    lobby:    { bpm: 68, prog: [[57,60,64,67,71],[53,57,60,64,69],[48,55,59,64,67],[52,55,59,62,67]], bass: [45,41,36,40], cutoff: 900, bells: .35, pulse: 0, kick: 0 },
-    question: { bpm: 104, prog: [[57,60,64],[53,57,60],[55,59,62],[52,56,59]], bass: [45,41,43,40], cutoff: 1500, bells: .15, pulse: 1, kick: 0 },
-    reveal:   { bpm: 76, prog: [[48,55,60,64],[55,59,62,67],[57,60,64,69],[53,57,60,65]], bass: [36,43,45,41], cutoff: 1300, bells: .5, pulse: 0, kick: 0 },
-    final:    { bpm: 92, prog: [[48,55,60,64,67],[55,59,62,67],[57,60,64,69],[53,57,60,64]], bass: [36,43,45,41], cutoff: 2200, bells: .7, pulse: 1, kick: 1 },
-    dream:    { bpm: 62, prog: [[57,60,64,67,71],[53,57,60,64,69],[48,55,59,64,67],[55,59,62,66]], bass: [45,41,36,43], cutoff: 1100, bells: .6, pulse: 0, kick: 0 },
+    lobby:    { bpm: 58, prog: [[52,59,64,67],[48,55,60,64],[43,50,55,59,62],[50,57,62,66]], bass: [40,36,43,38], cutoff: 700, bells: .55, pulse: 0, kick: 0, arp: 1 },
+    question: { bpm: 96, prog: [[52,59,64,67],[48,55,60,64],[45,52,57,60],[47,54,59,63]], bass: [40,36,45,47], cutoff: 1100, bells: .2, pulse: 1, kick: 0, arp: 0 },
+    reveal:   { bpm: 66, prog: [[45,52,57,60],[52,59,64,67],[48,55,60,64],[47,54,59,63]], bass: [45,40,36,47], cutoff: 900, bells: .5, pulse: 0, kick: 0, arp: 1 },
+    final:    { bpm: 84, prog: [[48,55,60,64,67],[43,50,55,59,62],[52,59,64,67],[50,57,62,66]], bass: [36,43,40,38], cutoff: 1600, bells: .6, pulse: 1, kick: 1, arp: 1 },
+    dream:    { bpm: 54, prog: [[52,59,64,67,71],[48,55,60,64,67],[45,52,57,60,64],[47,54,59,63,66]], bass: [40,36,45,47], cutoff: 800, bells: .7, pulse: 0, kick: 0, arp: 1 },
   },
   unlock() {
     if (this.ctx) return;
@@ -3200,16 +3200,18 @@ const Audio_ = {
     const g = ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.045, t + dur * .35); g.gain.linearRampToValueAtTime(0, t + dur * 1.05);
     f.connect(g); this.out(g, .8);
     for (const n of notes) for (const det of [-7, 6]) {
-      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = this.hz(n); o.detune.value = det;
+      const o = ctx.createOscillator(); o.type = det < 0 ? 'sawtooth' : 'triangle'; o.frequency.value = this.hz(n - 12 * (n > 62)); o.detune.value = det;
       o.connect(f); o.start(t); o.stop(t + dur * 1.1);
     }
   },
   bell(n, t, v = .1) {
-    const ctx = this.ctx, g = ctx.createGain(); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0008, t + 1.6);
-    this.out(g, .9);
-    for (const [mul, type, amp] of [[1, 'sine', 1], [2, 'triangle', .25], [3.01, 'sine', .12]]) {
-      const o = ctx.createOscillator(), og = ctx.createGain(); o.type = type; o.frequency.value = this.hz(n) * mul; og.gain.value = amp;
-      o.connect(og); og.connect(g); o.start(t); o.stop(t + 1.7);
+    const ctx = this.ctx, g = ctx.createGain(), f = ctx.createBiquadFilter();
+    f.type = 'lowpass'; f.frequency.setValueAtTime(3200, t); f.frequency.exponentialRampToValueAtTime(700, t + 1.8);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v * 1.4, t + .006); g.gain.exponentialRampToValueAtTime(v * .35, t + .35); g.gain.exponentialRampToValueAtTime(.0005, t + 3.2);
+    f.connect(g); this.out(g, .95);
+    for (const [mul, type, amp, det] of [[1, 'triangle', 1, 0], [1, 'sine', .6, 4], [2, 'sine', .22, -3], [3, 'sine', .07, 0]]) {
+      const o = ctx.createOscillator(), og = ctx.createGain(); o.type = type; o.frequency.value = this.hz(n) * mul; o.detune.value = det; og.gain.value = amp;
+      o.connect(og); og.connect(f); o.start(t); o.stop(t + 3.3);
     }
   },
   bass(n, t, dur) {
@@ -3244,7 +3246,12 @@ const Audio_ = {
       const chord = m.prog[bar];
       if (inBar === 0) { this.pad(chord, t, sixteenth * 16, m.cutoff); this.bass(m.bass[bar], t, sixteenth * 7); }
       if (inBar === 8) this.bass(m.bass[bar] + (m.pulse ? 12 : 7), t, sixteenth * 6);
-      if (inBar % 2 === 0 && Math.random() < m.bells) {
+      if (m.arp && inBar % 2 === 0) {
+        const up = chord.map((n) => n + 12), seq = up.concat(up.slice(1, -1).reverse());
+        const note = seq[(inBar / 2) % seq.length];
+        this.bell(note, t, inBar === 0 ? .075 : .045);
+        if (inBar === 0 && Math.random() < .5) this.bell(up[up.length - 1] + 12, t + sixteenth * 6, .03);
+      } else if (inBar % 2 === 0 && Math.random() < m.bells) {
         const pool = chord.map((n) => n + 12).concat(chord.map((n) => n + 24));
         this.bell(pool[Math.floor(Math.random() * pool.length)], t, .05 + Math.random() * .04);
       }
