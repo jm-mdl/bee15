@@ -2803,7 +2803,7 @@ safe-buffer/index.js:
 
 // 1) Ссылка на Mini App из @BotFather (/newapp), например 'https://t.me/Beebrth_bot/quiz'.
 //    Если пусто — QR откроет этот сайт прямо в браузере телефона.
-const TG_LINK = '';
+const TG_LINK = 'https://t.me/Beebrth_bot';
 
 // 2) Своя музыка (необязательно): прямые ссылки на mp3. Пусто — играет встроенная.
 const MUSIC = { lobby: '', question: '', final: '', slideshow: '' };
@@ -3823,7 +3823,7 @@ frame();
     go();
   };
   $('devGo').onclick = ok;
-  $('devName').onkeydown = (e) => e.key === 'Enter' && ok();
+  $('devName').addEventListener('keydown', (e) => { if (e.key === 'Enter') ok(); });
 })();
 
 })();
