@@ -345,7 +345,7 @@ body{
 <div id="splash"><div><div class="bee" id="splashBee"></div><div class="t">Улей готов</div><div class="s">Кликни в любом месте, чтобы включить музыку и экран</div>
 <div class="yt"><label for="ytUrl">Музыка с YouTube — вставь ссылку на видео или плейлист (необязательно)</label>
 <input id="ytUrl" type="url" placeholder="https://www.youtube.com/watch?v=… или …/playlist?list=…" autocomplete="off">
-<small>Пусто — играет встроенная музыка. Поменять потом: клавиша Y</small></div></div></div>
+<small>Играют первые 60 секунд по кругу. Пусто — встроенная музыка. Поменять потом: клавиша Y</small></div></div></div>
 <div id="ytBox"><div id="ytPlayer"></div></div><div id="ytNote"></div>
 
 </template>
@@ -3336,6 +3336,8 @@ const Audio_ = {
 };
 
 // ═════════════════ музыка с YouTube ═════════════════
+const DEFAULT_YT = 'https://youtu.be/7maJOI3QMu0';
+const LOOP_SECONDS = 60;
 const YT_ = {
   player: null, ready: false, apiP: null, src: null,
   parse(url) {
@@ -3347,7 +3349,10 @@ const YT_ = {
     if (!v && /youtu\.be$/.test(u.hostname)) v = u.pathname.slice(1).split('/')[0];
     if (!v) { const m = u.pathname.match(/\/(?:embed|shorts|live)\/([\w-]{6,})/); if (m) v = m[1]; }
     if (!v && !list) return null;
-    return { v, list };
+    const sec = (x) => { if (!x) return null; const m = String(x).match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/); return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : null; };
+    const start = sec(u.searchParams.get('t') || u.searchParams.get('start')) || 0;
+    const end = sec(u.searchParams.get('end')) || (list ? null : start + LOOP_SECONDS);
+    return { v, list, start, end };
   },
   api() {
     if (this.apiP) return this.apiP;
@@ -3365,14 +3370,21 @@ const YT_ = {
     try { localStorage.setItem('gulbi_yt', url); } catch {}
     await this.api();
     const vars = { autoplay: 1, controls: 1, loop: 1, rel: 0, modestbranding: 1, playsinline: 1 };
-    if (src.list) { vars.listType = 'playlist'; vars.list = src.list; } else vars.playlist = src.v;
+    if (src.list) { vars.listType = 'playlist'; vars.list = src.list; } else { vars.start = src.start; if (src.end) vars.end = src.end; }
     if (this.player) this.player.destroy();
     document.getElementById('ytBox').classList.add('on');
     Audio_.setExternal(true);
     this.player = new YT.Player('ytPlayer', {
       width: 220, height: 124, videoId: src.v || undefined, playerVars: vars,
       events: {
-        onReady: (e) => { e.target.setVolume(70); if (Audio_.muted) e.target.mute(); e.target.playVideo(); if (src.list) e.target.setShuffle && e.target.setShuffle(true); },
+        onStateChange: (e) => {
+          // одиночное видео: по достижении конца фрагмента возвращаемся к началу
+          if (!src.list && e.data === 0) { e.target.seekTo(src.start, true); e.target.playVideo(); }
+        },
+        onReady: (e) => {
+          clearInterval(this.loopT);
+          if (!src.list && src.end) this.loopT = setInterval(() => { try { if (e.target.getCurrentTime() >= src.end) e.target.seekTo(src.start, true); } catch {} }, 250);
+          e.target.setVolume(70); if (Audio_.muted) e.target.mute(); e.target.playVideo(); if (src.list) e.target.setShuffle && e.target.setShuffle(true); },
         onError: () => {
           // ролик запрещает встраивание — в плейлисте пробуем следующий, иначе возвращаем встроенную музыку
           if (src.list && this.player && this.player.nextVideo) { this.player.nextVideo(); return; }
@@ -3384,6 +3396,7 @@ const YT_ = {
     return true;
   },
   stop() {
+    clearInterval(this.loopT);
     if (this.player) { try { this.player.destroy(); } catch {} this.player = null; }
     document.getElementById('ytBox').classList.remove('on');
     const box = document.getElementById('ytBox'); if (!box.querySelector('#ytPlayer')) box.innerHTML = '<div id="ytPlayer"></div>';
@@ -3694,7 +3707,7 @@ addEventListener('keydown', (e) => {
 });
 $('nextBtn').onclick = () => send({ t: 'next' });
 $('wipeBtn').onclick = () => confirm('Начать игру с нуля? Игроки, очки и пожелания удалятся.') && send({ t: 'wipe' });
-try { $('ytUrl').value = new URLSearchParams(location.search).get('yt') || localStorage.getItem('gulbi_yt') || ''; } catch {}
+try { $('ytUrl').value = new URLSearchParams(location.search).get('yt') || localStorage.getItem('gulbi_yt') || DEFAULT_YT; } catch {}
 $('ytUrl').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('splash').click(); });
 $('splash').onclick = (e) => {
   if (e.target.closest('.yt') && e.isTrusted) return;
