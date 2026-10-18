@@ -3894,9 +3894,11 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 let text = '';
 (async () => {
   await Bus.init();
+  const all = new Map();
   Bus.onState((st) => {
-    const ws = (st && st.engine && st.engine.wishes) || (st && st.wishes) || [];
-    $('cnt').textContent = ws.length ? `Всего: ${ws.length}` : 'Пожеланий пока нет';
+    for (const w of ((st && st.engine && st.engine.wishes) || (st && st.wishes) || [])) if (w && w.text) all.set(w.id || w.name + w.text, w);
+    const ws = [...all.values()];
+    $('cnt').textContent = ws.length ? `Всего: ${ws.length} · страница продолжает собирать новые` : 'Пока пусто — жду данные от экрана игры…';
     $('list').innerHTML = ws.map((w) => `<div class="w"><b>${esc(w.name)}</b><p>${esc(w.text)}</p></div>`).join('');
     text = ws.map((w) => `${w.name}: ${w.text}`).join('\n\n');
     $('txt').value = text;
