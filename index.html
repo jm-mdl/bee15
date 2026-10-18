@@ -467,6 +467,20 @@ input.name{width:100%;border-radius:12px;border:1px solid rgba(201,182,255,.3);b
 </section>
 
 </template>
+<template id="tpl-wishes"><style>
+body{margin:0;min-height:100dvh;background:#1b0f2e;color:#fff3d6;font-family:'Unbounded',system-ui,sans-serif;padding:20px 16px 40px;box-sizing:border-box}
+h1{font-family:'Cormorant Garamond',serif;font-weight:700;font-size:34px;margin:6px 0 4px}
+.sub{font-family:'Cormorant Garamond',serif;font-style:italic;font-size:18px;color:#a894c9;margin-bottom:18px}
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:15px;background:#f4b942;color:#1b0f2e;font:600 14px 'Unbounded',sans-serif;margin-bottom:18px}
+.w{padding:14px;border-radius:16px;background:rgba(255,243,214,.06);border:1px solid rgba(201,182,255,.18);margin-bottom:10px}
+.w b{display:block;font-size:12px;color:#f4b942;margin-bottom:6px}
+.w p{margin:0;font-family:'Cormorant Garamond',serif;font-style:italic;font-size:20px;line-height:1.25;user-select:text;-webkit-user-select:text}
+#txt{width:100%;min-height:200px;margin-top:10px;border-radius:12px;background:rgba(27,15,46,.6);color:#fff3d6;border:1px solid rgba(201,182,255,.3);font:14px/1.4 system-ui;padding:10px;box-sizing:border-box;display:none}
+</style>
+<h1>Пожелания для Гульби 💜</h1><div class="sub" id="cnt">Загружаю…</div>
+<button class="btn" id="copy">Скопировать всё</button>
+<div id="list"></div><textarea id="txt" readonly></textarea>
+</template>
 <template id="tpl-remote"><style>
 body{margin:0;min-height:100dvh;background:#1b0f2e;color:#fff3d6;font-family:'Unbounded',system-ui,sans-serif;display:flex;flex-direction:column;padding:20px;gap:16px;box-sizing:border-box}
 .st{font-size:13px;color:#a894c9;line-height:1.6}.st b{color:#f4b942}
@@ -3140,7 +3154,8 @@ const PAGE_URL = location.href.split('?')[0].split('#')[0];
 
 </script>
 <script>
-const MODE = new URLSearchParams(location.search).has('host') ? 'host' : new URLSearchParams(location.search).has('remote') ? 'remote' : 'play';
+const _q = new URLSearchParams(location.search);
+const MODE = _q.has('host') ? 'host' : _q.has('remote') ? 'remote' : _q.has('wishes') ? 'wishes' : 'play';
 document.body.appendChild(document.getElementById('tpl-' + MODE).content.cloneNode(true));
 if (MODE === 'play') document.querySelector('meta[name=viewport]').content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
 </script>
@@ -3872,6 +3887,27 @@ frame();
   $('devName').addEventListener('keydown', (e) => { if (e.key === 'Enter') ok(); });
 })();
 
+})();
+if (MODE === 'wishes') (function runWishes() {
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let text = '';
+(async () => {
+  await Bus.init();
+  Bus.onState((st) => {
+    const ws = (st && st.engine && st.engine.wishes) || (st && st.wishes) || [];
+    $('cnt').textContent = ws.length ? `Всего: ${ws.length}` : 'Пожеланий пока нет';
+    $('list').innerHTML = ws.map((w) => `<div class="w"><b>${esc(w.name)}</b><p>${esc(w.text)}</p></div>`).join('');
+    text = ws.map((w) => `${w.name}: ${w.text}`).join('\n\n');
+    $('txt').value = text;
+  });
+  setTimeout(() => { if ($('cnt').textContent === 'Загружаю…') $('cnt').textContent = 'Нет связи или пожеланий пока нет'; }, 8000);
+})();
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText(text); $('copy').textContent = 'Скопировано ✓'; }
+  catch { $('txt').style.display = 'block'; $('txt').focus(); $('txt').select(); $('copy').textContent = 'Выдели текст ниже и скопируй'; }
+  setTimeout(() => ($('copy').textContent = 'Скопировать всё'), 3000);
+};
 })();
 if (MODE === 'remote') (function runRemote() {
 
