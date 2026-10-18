@@ -231,8 +231,9 @@ body{
 #splash .yt input{width:100%;font:1.1vw var(--ui);color:var(--wax);background:rgba(42,23,69,.9);border:1px solid rgba(201,182,255,.35);border-radius:.8vw;padding:1vw 1.2vw;outline:none}
 #splash .yt input:focus{border-color:var(--honey)}
 #splash .yt small{display:block;margin-top:1vh;font-size:.85vw;color:rgba(168,148,201,.7)}
-#ytBox{position:fixed;left:1.5vw;bottom:2vh;z-index:6;width:220px;height:124px;border-radius:10px;overflow:hidden;opacity:.55;box-shadow:0 6px 20px rgba(0,0,0,.4);display:none;transition:opacity .3s}
-#ytBox:hover{opacity:1}
+#ytBox{position:fixed;left:1.5vw;bottom:2vh;z-index:6;padding:8px 8px 30px;background:var(--wax);border-radius:6px;transform:rotate(-3deg);box-shadow:0 10px 26px rgba(0,0,0,.5);display:none}
+#ytBox::after{content:'♪ сейчас играет';position:absolute;left:0;right:0;bottom:6px;text-align:center;font:italic 700 16px var(--serif);color:var(--plum)}
+#ytBox iframe,#ytBox #ytPlayer{display:block;border-radius:3px}
 #ytBox.on{display:block}
 #ytNote{position:fixed;left:50%;bottom:9vh;transform:translateX(-50%);z-index:12;font-size:1vw;background:var(--rose);color:var(--night);padding:.6vw 1.2vw;border-radius:2vw;display:none}
 #splash .bee{width:9vw;height:9vw;margin:0 auto 3vh;animation:hover 2s ease-in-out infinite alternate}
@@ -3375,7 +3376,7 @@ const YT_ = {
     document.getElementById('ytBox').classList.add('on');
     Audio_.setExternal(true);
     this.player = new YT.Player('ytPlayer', {
-      width: 220, height: 124, videoId: src.v || undefined, playerVars: vars,
+      width: 200, height: 200, videoId: src.v || undefined, playerVars: vars,
       events: {
         onStateChange: (e) => {
           // одиночное видео: по достижении конца фрагмента возвращаемся к началу
