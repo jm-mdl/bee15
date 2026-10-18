@@ -226,16 +226,11 @@ body{
 #splash{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:rgba(27,15,46,.92);backdrop-filter:blur(8px);cursor:pointer;text-align:center}
 #splash .t{font-family:var(--serif);font-weight:700;font-size:4vw}
 #splash .s{margin-top:2vh;font-size:1.2vw;color:var(--muted)}
-#splash .yt{margin:4vh auto 0;width:min(46vw,760px);text-align:left}
-#splash .yt label{display:block;font-size:1vw;color:var(--muted);margin-bottom:1vh}
-#splash .yt input{width:100%;font:1.1vw var(--ui);color:var(--wax);background:rgba(42,23,69,.9);border:1px solid rgba(201,182,255,.35);border-radius:.8vw;padding:1vw 1.2vw;outline:none}
-#splash .yt input:focus{border-color:var(--honey)}
-#splash .yt small{display:block;margin-top:1vh;font-size:.85vw;color:rgba(168,148,201,.7)}
-#ytBox{position:fixed;left:1.5vw;bottom:2vh;z-index:6;padding:8px 8px 30px;background:var(--wax);border-radius:6px;transform:rotate(-3deg);box-shadow:0 10px 26px rgba(0,0,0,.5);display:none}
-#ytBox::after{content:'♪ сейчас играет';position:absolute;left:0;right:0;bottom:6px;text-align:center;font:italic 700 16px var(--serif);color:var(--plum)}
-#ytBox iframe,#ytBox #ytPlayer{display:block;border-radius:3px}
-#ytBox.on{display:block}
-#ytNote{position:fixed;left:50%;bottom:9vh;transform:translateX(-50%);z-index:12;font-size:1vw;background:var(--rose);color:var(--night);padding:.6vw 1.2vw;border-radius:2vw;display:none}
+#splash .mus{margin:4vh auto 0;display:flex;gap:1vw;align-items:center;justify-content:center;font-size:1vw;color:var(--muted)}
+#splash .mus button{font:600 1vw var(--ui);color:var(--night);background:var(--honey);border:0;border-radius:2vw;padding:.7vw 1.4vw;cursor:pointer}
+#splash .mus button.ghost{background:transparent;color:var(--lav);border:1px solid rgba(201,182,255,.4)}
+#splash .mus b{color:var(--wax);font-weight:600}
+#musNote{position:fixed;left:50%;bottom:9vh;transform:translateX(-50%);z-index:12;font-size:1vw;background:var(--rose);color:var(--night);padding:.6vw 1.2vw;border-radius:2vw;display:none}
 #splash .bee{width:9vw;height:9vw;margin:0 auto 3vh;animation:hover 2s ease-in-out infinite alternate}
 @keyframes hover{to{transform:translateY(-1.5vh) rotate(6deg)}}
 #modal{position:fixed;inset:0;z-index:15;display:none;place-items:center;background:rgba(27,15,46,.85)}
@@ -340,14 +335,12 @@ body{
 <div id="hive"></div>
 <div id="ticker"><div class="track" id="tickerTrack"></div></div>
 <canvas id="confetti"></canvas>
-<div class="hint"><span><kbd>Пробел</kbd> дальше · <kbd>K</kbd> пульт · <kbd>M</kbd> звук · <kbd>Y</kbd> YouTube · <kbd>F</kbd> весь экран</span><button id="wipeBtn" style="background:transparent;color:var(--lav);border:1px solid rgba(201,182,255,.4)">Заново</button><button id="nextBtn">Дальше</button></div>
+<div class="hint"><span><kbd>Пробел</kbd> дальше · <kbd>K</kbd> пульт · <kbd>M</kbd> звук · <kbd>O</kbd> музыка · <kbd>F</kbd> весь экран</span><button id="wipeBtn" style="background:transparent;color:var(--lav);border:1px solid rgba(201,182,255,.4)">Заново</button><button id="nextBtn">Дальше</button></div>
 <div id="status">Нет связи с сервером, переподключаюсь…</div>
 <div id="modal"><div class="box"><h3 class="h2" style="font-size:2.4vw">Пульт ведущего</h3><div class="q" id="remoteQr"></div><p id="remoteText"></p><p style="margin-top:1.5vh">Нажми <kbd>K</kbd> ещё раз, чтобы закрыть</p></div></div>
 <div id="splash"><div><div class="bee" id="splashBee"></div><div class="t">Улей готов</div><div class="s">Кликни в любом месте, чтобы включить музыку и экран</div>
-<div class="yt"><label for="ytUrl">Музыка с YouTube — вставь ссылку на видео или плейлист (необязательно)</label>
-<input id="ytUrl" type="url" placeholder="https://www.youtube.com/watch?v=… или …/playlist?list=…" autocomplete="off">
-<small>Играют первые 60 секунд по кругу. Пусто — встроенная музыка. Поменять потом: клавиша Y</small></div></div></div>
-<div id="ytBox"><div id="ytPlayer"></div></div><div id="ytNote"></div>
+<div class="mus" id="musBox"></div></div></div>
+<input type="file" id="musFile" accept="audio/*" hidden><div id="musNote"></div>
 
 </template>
 <template id="tpl-play"><style>
@@ -3302,7 +3295,7 @@ const Audio_ = {
     this.muted = !this.muted;
     if (this.master) this.master.gain.value = this.muted ? 0 : .55;
     if (this.el) this.el.volume = this.muted ? 0 : .8;
-    YT_.mute(this.muted);
+    Music.mute(this.muted);
   },
   setExternal(on) {
     this.external = on;
@@ -3336,76 +3329,49 @@ const Audio_ = {
   },
 };
 
-// ═════════════════ музыка с YouTube ═════════════════
-const DEFAULT_YT = 'https://youtu.be/7maJOI3QMu0';
-const LOOP_SECONDS = 60;
-const YT_ = {
-  player: null, ready: false, apiP: null, src: null,
-  parse(url) {
-    url = String(url || '').trim();
-    if (!url) return null;
-    let u; try { u = new URL(url.includes('://') ? url : 'https://' + url); } catch { return null; }
-    const list = u.searchParams.get('list');
-    let v = u.searchParams.get('v');
-    if (!v && /youtu\.be$/.test(u.hostname)) v = u.pathname.slice(1).split('/')[0];
-    if (!v) { const m = u.pathname.match(/\/(?:embed|shorts|live)\/([\w-]{6,})/); if (m) v = m[1]; }
-    if (!v && !list) return null;
-    const sec = (x) => { if (!x) return null; const m = String(x).match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/); return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : null; };
-    const start = sec(u.searchParams.get('t') || u.searchParams.get('start')) || 0;
-    const end = sec(u.searchParams.get('end')) || (list ? null : start + LOOP_SECONDS);
-    return { v, list, start, end };
+// ═════════════════ своя музыка ═════════════════
+// Трек с ноутбука: выбирается один раз, хранится в браузере (IndexedDB), никуда не загружается
+const LOOP_SECONDS = 60; // играть первые N секунд по кругу (0 — весь трек)
+const Music = {
+  el: null, url: null, name: null,
+  db() {
+    return new Promise((res, rej) => { const r = indexedDB.open('gulbi15', 1); r.onupgradeneeded = () => r.result.createObjectStore('m'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
   },
-  api() {
-    if (this.apiP) return this.apiP;
-    this.apiP = new Promise((res) => {
-      window.onYouTubeIframeAPIReady = res;
-      const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s);
-    });
-    return this.apiP;
+  async load() {
+    try {
+      const db = await this.db();
+      const rec = await new Promise((res) => { const q = db.transaction('m').objectStore('m').get('track'); q.onsuccess = () => res(q.result); q.onerror = () => res(null); });
+      if (rec && rec.blob) { this.set(rec.blob, rec.name); return true; }
+    } catch {}
+    return false;
   },
-  note(t) { const n = document.getElementById('ytNote'); n.textContent = t; n.style.display = 'block'; clearTimeout(this.nt); this.nt = setTimeout(() => (n.style.display = 'none'), 6000); },
-  async play(url) {
-    const src = this.parse(url);
-    if (!src) { this.stop(); return false; }
-    this.src = src;
-    try { localStorage.setItem('gulbi_yt', url); } catch {}
-    await this.api();
-    const vars = { autoplay: 1, controls: 1, loop: 1, rel: 0, modestbranding: 1, playsinline: 1 };
-    if (src.list) { vars.listType = 'playlist'; vars.list = src.list; } else { vars.start = src.start; if (src.end) vars.end = src.end; }
-    if (this.player) this.player.destroy();
-    document.getElementById('ytBox').classList.add('on');
-    Audio_.setExternal(true);
-    this.player = new YT.Player('ytPlayer', {
-      width: 200, height: 200, videoId: src.v || undefined, playerVars: vars,
-      events: {
-        onStateChange: (e) => {
-          // одиночное видео: по достижении конца фрагмента возвращаемся к началу
-          if (!src.list && e.data === 0) { e.target.seekTo(src.start, true); e.target.playVideo(); }
-        },
-        onReady: (e) => {
-          clearInterval(this.loopT);
-          if (!src.list && src.end) this.loopT = setInterval(() => { try { if (e.target.getCurrentTime() >= src.end) e.target.seekTo(src.start, true); } catch {} }, 250);
-          e.target.setVolume(70); if (Audio_.muted) e.target.mute(); e.target.playVideo(); if (src.list) e.target.setShuffle && e.target.setShuffle(true); },
-        onError: () => {
-          // ролик запрещает встраивание — в плейлисте пробуем следующий, иначе возвращаем встроенную музыку
-          if (src.list && this.player && this.player.nextVideo) { this.player.nextVideo(); return; }
-          this.note('Это видео нельзя проиграть на сайте. Включаю встроенную музыку — попробуй другую ссылку (клавиша Y)');
-          this.stop();
-        },
-      },
-    });
-    return true;
+  async save(file) {
+    this.set(file, file.name);
+    try { const db = await this.db(); db.transaction('m', 'readwrite').objectStore('m').put({ blob: file, name: file.name }, 'track'); } catch {}
   },
-  stop() {
-    clearInterval(this.loopT);
-    if (this.player) { try { this.player.destroy(); } catch {} this.player = null; }
-    document.getElementById('ytBox').classList.remove('on');
-    const box = document.getElementById('ytBox'); if (!box.querySelector('#ytPlayer')) box.innerHTML = '<div id="ytPlayer"></div>';
-    this.src = null;
-    Audio_.setExternal(false);
+  async forget() {
+    this.stop(); this.name = null;
+    try { const db = await this.db(); db.transaction('m', 'readwrite').objectStore('m').delete('track'); } catch {}
   },
-  mute(m) { if (this.player && this.player.mute) m ? this.player.mute() : this.player.unMute(); },
+  set(blob, name) {
+    this.stop();
+    if (this.url) URL.revokeObjectURL(this.url);
+    this.url = URL.createObjectURL(blob); this.name = name;
+  },
+  play() {
+    if (!this.url) return;
+    const el = this.el || new Audio();
+    el.src = this.url; el.loop = !LOOP_SECONDS; el.volume = Audio_.muted ? 0 : .8;
+    el.ontimeupdate = () => { if (LOOP_SECONDS && el.currentTime >= LOOP_SECONDS) el.currentTime = 0; };
+    el.onended = () => { el.currentTime = 0; el.play().catch(() => {}); };
+    this.el = el;
+    el.play().then(() => Audio_.setExternal(true)).catch(() => note('Браузер не дал включить музыку — кликни по экрану ещё раз'));
+  },
+  stop() { if (this.el) { this.el.pause(); } Audio_.setExternal(false); },
+  mute(m) { if (this.el) this.el.volume = m ? 0 : .8; },
 };
+window.Music = Music; window.Audio__ = Audio_;
+function note(t) { const n = document.getElementById('musNote'); n.textContent = t; n.style.display = 'block'; clearTimeout(note.t); note.t = setTimeout(() => (n.style.display = 'none'), 6000); }
 
 // ═════════════════ конфетти: соты и капли мёда ═════════════════
 const Confetti = (() => {
@@ -3696,11 +3662,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowRight' || e.code === 'PageDown') { e.preventDefault(); send({ t: 'next' }); }
   if (e.code === 'ArrowLeft' || e.code === 'PageUp') send({ t: 'back' });
   if (e.code === 'KeyM') Audio_.toggleMute();
-  if (e.code === 'KeyY') {
-    let cur = ''; try { cur = localStorage.getItem('gulbi_yt') || ''; } catch {}
-    const url = prompt('Ссылка на YouTube (видео или плейлист). Пусто — встроенная музыка:', cur);
-    if (url !== null) { if (url.trim()) YT_.play(url.trim()); else { YT_.stop(); try { localStorage.removeItem('gulbi_yt'); } catch {} } }
-  }
+  if (e.code === 'KeyO') $('musFile').click();
   if (e.code === 'KeyF') document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {});
   if (e.code === 'KeyK') toggleRemote();
   if (e.code === 'KeyN' && e.shiftKey && confirm('Очистить комнату полностью? Удалятся игроки, ответы и пожелания.')) send({ t: 'wipe' });
@@ -3708,16 +3670,26 @@ addEventListener('keydown', (e) => {
 });
 $('nextBtn').onclick = () => send({ t: 'next' });
 $('wipeBtn').onclick = () => confirm('Начать игру с нуля? Игроки, очки и пожелания удалятся.') && send({ t: 'wipe' });
-try { $('ytUrl').value = new URLSearchParams(location.search).get('yt') || localStorage.getItem('gulbi_yt') || DEFAULT_YT; } catch {}
-$('ytUrl').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('splash').click(); });
+function musUi() {
+  const box = $('musBox'); if (!box) return;
+  box.innerHTML = Music.name
+    ? `<span>🎵 <b>${esc(Music.name.replace(/\.[^.]+$/, ''))}</b> — включится сама</span><button class="ghost" data-act="pick">Сменить</button><button class="ghost" data-act="off">Без неё</button>`
+    : `<button data-act="pick">🎵 Выбрать музыку с компьютера</button><span>или играет встроенная</span>`;
+}
+$('musFile').onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  await Music.save(f); musUi();
+  if (!$('splash')) Music.play();
+  e.target.value = '';
+};
 $('splash').onclick = (e) => {
-  if (e.target.closest('.yt') && e.isTrusted) return;
+  const act = e.target.closest('[data-act]');
+  if (act) { e.stopPropagation(); if (act.dataset.act === 'pick') $('musFile').click(); else { Music.forget().then(musUi); } return; }
   Audio_.unlock(); const m = Audio_.mode; Audio_.mode = null; Audio_.setMode(m || 'lobby');
-  const url = $('ytUrl').value.trim();
-  if (url) { if (!YT_.parse(url)) YT_.note('Не похоже на ссылку YouTube — играет встроенная музыка'); else YT_.play(url); }
-  else { try { localStorage.removeItem('gulbi_yt'); } catch {} }
+  Music.play();
   $('splash').remove();
 };
+Music.load().then(musUi);
 
 (async () => {
   Bus.onConn = (ok) => { $('status').style.display = ok ? 'none' : 'block'; };
