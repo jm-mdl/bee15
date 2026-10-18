@@ -475,11 +475,17 @@ body{margin:0;min-height:100dvh;background:#1b0f2e;color:#fff3d6;font-family:'Un
 .next:active{transform:scale(.98)}
 .row{display:flex;gap:10px}
 .row button{flex:1;padding:16px;border-radius:16px;border:1px solid rgba(201,182,255,.3);background:transparent;color:#c9b6ff;font:600 13px 'Unbounded',sans-serif}
+.mus{display:flex;gap:10px;align-items:center;padding:12px 14px;border-radius:16px;background:rgba(255,243,214,.06);border:1px solid rgba(201,182,255,.18);font-size:12px;color:#a894c9}
+.mus .nm{flex:1;color:#fff3d6;line-height:1.4}
+.mus button{padding:10px 14px;border-radius:12px;border:0;background:#f4b942;color:#1b0f2e;font:600 12px 'Unbounded',sans-serif}
+.mus button.ghost{background:transparent;color:#c9b6ff;border:1px solid rgba(201,182,255,.3)}
 </style>
 <div class="st">Фаза: <b id="ph">—</b> · онлайн: <b id="on">0</b> · ответили: <b id="ans">0</b></div>
 <div class="q" id="q"></div>
 <button class="next" id="next">Дальше</button>
 <div class="row"><button id="back">Назад (финал)</button><button id="reset">Сначала</button></div>
+<div class="mus"><span class="nm" id="musName">🎵 Музыка с этого телефона</span><button id="musPick">Выбрать</button><button class="ghost" id="musToggle" hidden>⏸</button></div>
+<input type="file" id="musFile" accept="audio/*" hidden>
 </template>
 
 <script>/* qrcode-generator 1.4.4, MIT, Kazuhiko Arase */
@@ -3928,6 +3934,33 @@ const cmd = (t) => { Bus.send({ type: 'cmd', t }); navigator.vibrate && navigato
     $('q').textContent = q && m.phase !== 'final' ? `${m.qIndex + 1}. ${q.text}` : '';
   });
 })();
+// музыка играет с телефона ведущего: файл выбирается один раз и хранится только на этом телефоне
+const LOOP_SECONDS = 60;
+const M = {
+  el: new Audio(), url: null, name: null, on: false,
+  db() { return new Promise((res, rej) => { const r = indexedDB.open('gulbi15', 1); r.onupgradeneeded = () => r.result.createObjectStore('m'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async load() {
+    try { const db = await this.db(); const rec = await new Promise((res) => { const q = db.transaction('m').objectStore('m').get('track'); q.onsuccess = () => res(q.result); q.onerror = () => res(null); }); if (rec && rec.blob) this.set(rec.blob, rec.name); } catch {}
+  },
+  set(blob, name) { if (this.url) URL.revokeObjectURL(this.url); this.url = URL.createObjectURL(blob); this.name = name; this.el.src = this.url; ui(); },
+  async save(f) { this.set(f, f.name); try { const db = await this.db(); db.transaction('m', 'readwrite').objectStore('m').put({ blob: f, name: f.name }, 'track'); } catch {} },
+  play() { if (!this.url) return; this.el.play().then(() => { this.on = true; ui(); }).catch(() => {}); },
+  pause() { this.el.pause(); this.on = false; ui(); },
+};
+M.el.loop = !LOOP_SECONDS;
+M.el.ontimeupdate = () => { if (LOOP_SECONDS && M.el.currentTime >= LOOP_SECONDS) M.el.currentTime = 0; };
+M.el.onended = () => { M.el.currentTime = 0; M.el.play().catch(() => {}); };
+function ui() {
+  $('musName').textContent = M.name ? `🎵 ${M.name.replace(/\.[^.]+$/, '')}` + (M.on ? ' — играет' : ' — нажми любую кнопку') : '🎵 Музыка с этого телефона';
+  $('musPick').textContent = M.name ? 'Сменить' : 'Выбрать';
+  $('musToggle').hidden = !M.name; $('musToggle').textContent = M.on ? '⏸' : '▶';
+}
+$('musPick').onclick = () => $('musFile').click();
+$('musFile').onchange = async (e) => { const f = e.target.files[0]; if (f) { await M.save(f); M.play(); } e.target.value = ''; };
+$('musToggle').onclick = (e) => { e.stopPropagation(); M.on ? M.pause() : M.play(); };
+// браузер разрешает звук только после касания — включаем при первом нажатии на любую кнопку
+document.addEventListener('click', (e) => { if (M.url && !M.on && !e.target.closest('#musToggle,#musPick')) M.play(); }, true);
+M.load();
 $('next').onclick = () => cmd('next');
 $('back').onclick = () => cmd('back');
 $('reset').onclick = () => confirm('Начать заново? Очки обнулятся.') && cmd('reset');
