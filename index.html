@@ -330,7 +330,7 @@ body{
 <div id="hive"></div>
 <div id="ticker"><div class="track" id="tickerTrack"></div></div>
 <canvas id="confetti"></canvas>
-<div class="hint"><span><kbd>Пробел</kbd> дальше · <kbd>K</kbd> пульт · <kbd>M</kbd> звук · <kbd>F</kbd> весь экран</span><button id="nextBtn">Дальше</button></div>
+<div class="hint"><span><kbd>Пробел</kbd> дальше · <kbd>K</kbd> пульт · <kbd>M</kbd> звук · <kbd>F</kbd> весь экран</span><button id="wipeBtn" style="background:transparent;color:var(--lav);border:1px solid rgba(201,182,255,.4)">Заново</button><button id="nextBtn">Дальше</button></div>
 <div id="status">Нет связи с сервером, переподключаюсь…</div>
 <div id="modal"><div class="box"><h3 class="h2" style="font-size:2.4vw">Пульт ведущего</h3><div class="q" id="remoteQr"></div><p id="remoteText"></p><p style="margin-top:1.5vh">Нажми <kbd>K</kbd> ещё раз, чтобы закрыть</p></div></div>
 <div id="splash"><div><div class="bee" id="splashBee"></div><div class="t">Улей готов</div><div class="s">Кликни в любом месте, чтобы включить музыку и экран</div></div></div>
@@ -2815,7 +2815,7 @@ const URLQ = new URLSearchParams(location.search);
 const ROOM = URLQ.get('room') || 'gulbi15';
 // Публичный MQTT-брокер (бесплатный, без регистрации). Канал защищён случайным ключом комнаты.
 const BROKER = URLQ.get('broker') || 'wss://broker.emqx.io:8084/mqtt';
-const ROOM_SECRET = 'c06d510e5178';
+const ROOM_SECRET = '7913114dafa4';
 
 // ╔══════════════════════════════════════════════════════════════╗
 // ║  ВОПРОСЫ. correct: 0 = A, 1 = B, 2 = C, 3 = D                ║
@@ -3604,6 +3604,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyR' && e.shiftKey && confirm('Начать игру заново? Очки обнулятся.')) send({ t: 'reset' });
 });
 $('nextBtn').onclick = () => send({ t: 'next' });
+$('wipeBtn').onclick = () => confirm('Начать игру с нуля? Игроки, очки и пожелания удалятся.') && send({ t: 'wipe' });
 $('splash').onclick = () => { Audio_.unlock(); const m = Audio_.mode; Audio_.mode = null; Audio_.setMode(m || 'lobby'); $('splash').remove(); };
 
 (async () => {
